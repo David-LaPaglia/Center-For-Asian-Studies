@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Center for Asian Studies Department Viz Tool</title>
+  <!-- React, ReactDOM, and Babel -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.2/babel.min.js"></script>
+  <!-- Chart.js for visualizations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.0/chart.umd.min.js"></script>
+  <!-- Tailwind CSS for styling -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9fafb;
+    }
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 1rem;
+      justify-content: center;
+    }
+    .tab {
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      transition: all 0.2s ease;
+    }
+    .tab-active {
+      background-color: #4f46e5;
+      color: white;
+    }
+    .tab:hover:not(.tab-active) {
+      background-color: #e0e7ff;
+    }
+    .btn-reset {
+      background-color: #ef4444;
+      color: white;
+      transition: all 0.2s ease;
+    }
+    .btn-reset:hover {
+      background-color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Diverse sample data for demonstration
+    const sampleData = [
+      { category: 'East Asian Studies', region: 'China', enrollment: 450, funding: 120, year: 2022, quarter: 'Q1', gender: 'Female' },
+      { category: 'South Asian Studies', region: 'India', enrollment: 320, funding: 95, year: 2022, quarter: 'Q1', gender: 'Male' },
+      { category: 'Southeast Asian Studies', region: 'Thailand', enrollment: 280, funding: 70, year: 2022, quarter: 'Q1', gender: 'Non-binary' },
+      { category: 'East Asian Studies', region: 'Japan', enrollment: 510, funding: 140, year: 2022, quarter: 'Q2', gender: 'Female' },
+      { category: 'South Asian Studies', region: 'Pakistan', enrollment: 350, funding: 105, year: 2022, quarter: 'Q2', gender: 'Male' },
+      { category: 'Southeast Asian Studies', region: 'Vietnam', enrollment: 310, funding: 85, year: 2022, quarter: 'Q2', gender: 'Female' },
+      { category: 'East Asian Studies', region: 'Korea', enrollment: 480, funding: 130, year: 2022, quarter: 'Q3', gender: 'Male' },
+      { category: 'South Asian Studies', region: 'Bangladesh', enrollment: 380, funding: 110, year: 2022, quarter: 'Q3', gender: 'Female' },
+      { category: 'Southeast Asian Studies', region: 'Indonesia', enrollment: 340, funding: 90, year: 2022, quarter: 'Q3', gender: 'Non-binary' },
+      { category: 'Central Asian Studies', region: 'Kazakhstan', enrollment: 290, funding: 75, year: 2022, quarter: 'Q3', gender: 'Male' },
+      { category: 'East Asian Studies', region: 'Mongolia', enrollment: 220, funding: 60, year: 2022, quarter: 'Q4', gender: 'Female' },
+      { category: 'South Asian Studies', region: 'Nepal', enrollment: 260, funding: 70, year: 2022, quarter: 'Q4', gender: 'Non-binary' },
+    ];
+
+    // Diverse color palette
+    const colors = [
+      'rgba(66, 133, 244, 0.8)',   // Blue
+      'rgba(219, 68, 55, 0.8)',    // Red
+      'rgba(244, 180, 0, 0.8)',    // Yellow
+      'rgba(15, 157, 88, 0.8)',    // Green
+      'rgba(98, 0, 238, 0.8)',     // Purple
+      'rgba(255, 109, 0, 0.8)',    // Orange
+      'rgba(171, 71, 188, 0.8)',   // Pink/Purple
+      'rgba(0, 172, 193, 0.8)',    // Teal
+      'rgba(124, 179, 66, 0.8)',   // Light Green
+      'rgba(144, 75, 0, 0.8)'      // Brown
+    ];
+
+    const App = () => {
+      const [data, setData] = useState([]);
+      const [inputText, setInputText] = useState('');
+      const [chartType, setChartType] = useState('bar');
+      const [xAxis, setXAxis] = useState('');
+      const [yAxis, setYAxis] = useState('');
+      const [groupBy, setGroupBy] = useState('');
+      const [availableFields, setAvailableFields] = useState([]);
+      const [error, setError] = useState('');
+      const [activeTab, setActiveTab] = useState('input');
+      const chartRef = useRef(null);
+      const chartInstance = useRef(null);
+      
+      // Load sample data initially
+      useEffect(() => {
+        handleSampleData();
+      }, []);
+
+      // Update chart whenever data or chart options change
+      useEffect(() => {
+        if (data.length > 0 && xAxis && yAxis) {
+          renderChart();
+        }
+      }, [data, chartType, xAxis, yAxis, groupBy]);
+
+      const handleSampleData = () => {
+        setData(sampleData);
+        setInputText(JSON.stringify(sampleData, null, 2));
+        analyzeDataStructure(sampleData);
+        setError('');
+      };
+
+      const handleDataSubmit = () => {
+        try {
+          const parsedData = JSON.parse(inputText);
+          if (!Array.isArray(parsedData)) {
+            throw new Error('Data must be an array of objects');
+          }
+          if (parsedData.length === 0) {
+            throw new Error('Data array cannot be empty');
+          }
+          setData(parsedData);
+          analyzeDataStructure(parsedData);
+          setError('');
+          setActiveTab('visualize');
+        } catch (err) {
+          setError('Invalid JSON: ' + err.message);
+        }
+      };
+
+      const analyzeDataStructure = (data) => {
+        if (data.length === 0 || typeof data[0] !== 'object') return;
+        
+        const fields = Object.keys(data[0]);
+        setAvailableFields(fields);
+        
+        // Auto-select the first field as X-axis and the second numerical field as Y-axis
+        const firstField = fields[0];
+        setXAxis(firstField);
+        
+        // Find first numerical field for Y-axis
+        const numericalField = fields.find(field => 
+          !isNaN(parseFloat(data[0][field]))
+        );
+        
+        if (numericalField) {
+          setYAxis(numericalField);
+        } else {
+          setYAxis(fields[1] || '');
+        }
+      };
+
+      const renderChart = () => {
+        if (!chartRef.current) return;
+        
+        // Destroy previous chart if it exists
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+        }
+        
+        // Process data based on selected axes and groupBy
+        let processedData;
+        let labels;
+        
+        if (groupBy && groupBy !== xAxis) {
+          // Group data by the selected group field
+          const groupedData = {};
+          
+          data.forEach(item => {
+            const xValue = item[xAxis];
+            const yValue = parseFloat(item[yAxis]);
+            const groupValue = item[groupBy];
+            
+            if (!groupedData[xValue]) {
+              groupedData[xValue] = {};
+            }
+            
+            groupedData[xValue][groupValue] = yValue;
+          });
+          
+          // Extract unique group values
+          const groupValues = [...new Set(data.map(item => item[groupBy]))];
+          
+          // Prepare datasets for Chart.js
+          labels = Object.keys(groupedData);
+          processedData = groupValues.map((group, index) => ({
+            label: group,
+            data: labels.map(label => groupedData[label][group] || 0),
+            backgroundColor: colors[index % colors.length],
+            borderColor: colors[index % colors.length].replace('0.8', '1'),
+            borderWidth: 1
+          }));
+        } else {
+          // Simple chart without grouping
+          labels = data.map(item => item[xAxis]);
+          processedData = [{
+            label: yAxis,
+            data: data.map(item => parseFloat(item[yAxis])),
+            backgroundColor: colors[0],
+            borderColor: colors[0].replace('0.8', '1'),
+            borderWidth: 1
+          }];
+        }
+        
+        // Create the chart
+        const ctx = chartRef.current.getContext('2d');
+        chartInstance.current = new Chart(ctx, {
+          type: chartType,
+          data: {
+            labels,
+            datasets: processedData
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: {
+                  display: true,
+                  text: yAxis
+                }
+              },
+              x: {
+                title: {
+                  display: true,
+                  text: xAxis
+                }
+              }
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: `Center for Asian Studies Department - ${yAxis} by ${xAxis}${groupBy ? ` grouped by ${groupBy}` : ''}`,
+                font: {
+                  size: 16
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    return `${context.dataset.label}: ${context.raw}`;
+                  }
+                }
+              },
+              legend: {
+                display: !!groupBy,
+                position: 'top'
+              }
+            },
+            animation: {
+              duration: 1000,
+              easing: 'easeOutQuart'
+            }
+          }
+        });
+      };
+
+      const handleCsvImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const csvText = event.target.result;
+            const lines = csvText.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+              const line = lines[i].trim();
+              if (!line) continue;
+              
+              const values = line.split(',');
+              const obj = {};
+              
+              headers.forEach((header, index) => {
+                let value = values[index]?.trim() || '';
+                // Try to convert to number if possible
+                if (!isNaN(parseFloat(value)) && isFinite(value)) {
+                  value = parseFloat(value);
+                }
+                obj[header] = value;
+              });
+              
+              result.push(obj);
+            }
+            
+            setData(result);
+            setInputText(JSON.stringify(result, null, 2));
+            analyzeDataStructure(result);
+            setError('');
+          } catch (err) {
+            setError('Error parsing CSV: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      const resetVisualization = () => {
+        // Reset chart options
+        setChartType('bar');
+        if (availableFields.length > 0) {
+          setXAxis(availableFields[0]);
+          
+          // Find first numerical field for Y-axis
+          const numericalField = availableFields.find(field => 
+            data.length > 0 && !isNaN(parseFloat(data[0][field]))
+          );
+          
+          if (numericalField) {
+            setYAxis(numericalField);
+          } else {
+            setYAxis(availableFields[1] || '');
+          }
+        }
+        setGroupBy('');
+      };
+
+      const resetAllData = () => {
+        setData([]);
+        setInputText('');
+        setAvailableFields([]);
+        setXAxis('');
+        setYAxis('');
+        setGroupBy('');
+        setChartType('bar');
+        setError('');
+        
+        // Destroy chart if it exists
+        if (chartInstance.current) {
+          chartInstance.current.destroy();
+          chartInstance.current = null;
+        }
+      };
+
+      return (
+        <div className="container mx-auto p-4 max-w-6xl">
+          <header className="text-center mb-8 mt-4">
+            <h1 className="text-3xl font-bold text-indigo-800 mb-2">Center for Asian Studies Department Viz Tool</h1>
+            <p className="text-gray-600">Input your data and create beautiful, interactive visualizations</p>
+          </header>
+
+          <div className="tabs mb-6">
+            <div 
+              className={`tab ${activeTab === 'input' ? 'tab-active' : 'bg-gray-100'}`}
+              onClick={() => setActiveTab('input')}
+            >
+              Data Input
+            </div>
+            <div 
+              className={`tab ${activeTab === 'visualize' ? 'tab-active' : 'bg-gray-100'}`}
+              onClick={() => setActiveTab('visualize')}
+            >
+              Visualize
+            </div>
+          </div>
+
+          {activeTab === 'input' && (
+            <div className="bg-white rounded-lg shadow-md p-8 mb-8 mx-auto max-w-4xl">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <label className="block text-gray-700 font-semibold">Enter your data (JSON format):</label>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={handleSampleData}
+                      className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 rounded-md text-sm transition"
+                    >
+                      Load Sample Data
+                    </button>
+                    <label className="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-md text-sm cursor-pointer transition">
+                      Import CSV
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        onChange={handleCsvImport} 
+                        className="hidden" 
+                      />
+                    </label>
+                    <button 
+                      onClick={resetAllData}
+                      className="px-4 py-2 btn-reset rounded-md text-sm transition"
+                    >
+                      Reset All
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  className="w-full h-64 p-4 border rounded-md font-mono text-sm"
+                  placeholder='[{"category": "East Asian Studies", "enrollment": 450}, {"category": "South Asian Studies", "enrollment": 320}]'
+                />
+                {error && <p className="text-red-500 mt-2">{error}</p>}
+              </div>
+              <div className="text-center">
+                <button 
+                  onClick={handleDataSubmit}
+                  className="px-8 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition text-lg"
+                >
+                  Visualize Data
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'visualize' && (
+            <div className="bg-white rounded-lg shadow-md p-8 mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">Chart Type</label>
+                  <select
+                    value={chartType}
+                    onChange={(e) => setChartType(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="bar">Bar Chart</option>
+                    <option value="line">Line Chart</option>
+                    <option value="pie">Pie Chart</option>
+                    <option value="doughnut">Doughnut Chart</option>
+                    <option value="polarArea">Polar Area</option>
+                    <option value="radar">Radar Chart</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">X-Axis</label>
+                  <select
+                    value={xAxis}
+                    onChange={(e) => setXAxis(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select Field</option>
+                    {availableFields.map(field => (
+                      <option key={field} value={field}>{field}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">Y-Axis</label>
+                  <select
+                    value={yAxis}
+                    onChange={(e) => setYAxis(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">Select Field</option>
+                    {availableFields.map(field => (
+                      <option key={field} value={field}>{field}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-medium mb-2">Group By (Optional)</label>
+                  <select
+                    value={groupBy}
+                    onChange={(e) => setGroupBy(e.target.value)}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    <option value="">None</option>
+                    {availableFields.map(field => (
+                      <option key={field} value={field}>{field}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-center mb-6">
+                <button 
+                  onClick={resetVisualization}
+                  className="px-6 py-2 btn-reset rounded-md text-sm transition mx-auto"
+                >
+                  Reset Visualization
+                </button>
+              </div>
+
+              <div className="chart-container mt-8 bg-gray-50 p-6 rounded-lg">
+                <canvas ref={chartRef}></canvas>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 text-center text-gray-500 text-sm">
+            <p>Center for Asian Studies Department Viz Tool</p>
+            <p className="mt-2">Tips: You can hover over data points to see detailed information. Try different chart types and groupings for better insights.</p>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
